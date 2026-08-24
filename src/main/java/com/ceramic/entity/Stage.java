@@ -3,7 +3,6 @@ package com.ceramic.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.engine.jdbc.batch.spi.Batch;
 
 import java.util.Set;
 
