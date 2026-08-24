@@ -1,10 +1,13 @@
 spring:
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/ceramics_pipeline
+    url: jdbc:mysql://127.0.0.1:3306/ceramics_pipeline?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
     password: Theanh@123
-#    password: sapassword
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+  sql:
+    init:
+      mode: always
 
   jpa:
     hibernate:
@@ -12,7 +15,7 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQL8Dialect
+        dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
         enable_lazy_load_no_trans: true
       hibernate.jdbc.lob.non_contextual_creation: true
