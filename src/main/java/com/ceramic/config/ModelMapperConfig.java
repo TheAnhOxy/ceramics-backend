@@ -10,10 +10,11 @@ public class ModelMapperConfig {
 
     @Bean
     public ModelMapper modelMapper() {
-        ModelMapper modelMapper = new ModelMapper();
-        modelMapper.getConfiguration()
-                .setMatchingStrategy(MatchingStrategies.STRICT);
-        return modelMapper;
+        ModelMapper mapper = new ModelMapper();
+        mapper.getConfiguration()
+                .setMatchingStrategy(MatchingStrategies.STANDARD)
+                .setFieldMatchingEnabled(true)
+                .setSkipNullEnabled(true);
+        return mapper;
     }
-
 }
