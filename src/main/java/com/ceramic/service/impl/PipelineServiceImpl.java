@@ -11,10 +11,7 @@ import com.ceramic.enums.BatchStatus;
 import com.ceramic.enums.HistoryStatus;
 import com.ceramic.exception.BatchNotFoundException;
 import com.ceramic.exception.InvalidStageTransitionException;
-import com.ceramic.repository.BatchRepository;
-import com.ceramic.repository.BatchStageHistoryRepository;
-import com.ceramic.repository.StageRepository;
-import com.ceramic.repository.UserRepository;
+import com.ceramic.repository.*;
 import com.ceramic.service.NotificationService;
 import com.ceramic.service.PipelineService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +34,7 @@ public class PipelineServiceImpl implements PipelineService {
     private final StageRepository stageRepo;
     private final BatchStageHistoryRepository historyRepo;
     private final UserRepository userRepo;
+    private final AiExtractionRepository aiExtractionRepo;
     private final NotificationService notificationService;
     private final ModelMapper modelMapper;
 
@@ -45,11 +43,10 @@ public class PipelineServiceImpl implements PipelineService {
     public BatchResponse advanceStage(Long batchId, Long performedBy, String note, Boolean forceSkip) {
         log.info("Chuyển công đoạn cho Mẻ gốm ID: {}, người thực hiện: {}, ghi chú: {}", batchId, performedBy, note);
 
-        // 1. Pessimistic Lock tránh race condition khi 2 người cùng bấm chuyển trạng thái
+        // 1. Pessimistic Lock tránh race condition
         Batch batch = batchRepo.findByIdForUpdate(batchId)
                 .orElseThrow(() -> new BatchNotFoundException(batchId));
 
-        // Validation: Không cho chuyển trạng thái nếu batch đang tạm dừng hoặc thất bại hoặc đã hoàn thành
         if (batch.getStatus() == BatchStatus.ON_HOLD || batch.getStatus() == BatchStatus.FAILED) {
             throw new InvalidStageTransitionException("Không thể chuyển công đoạn vì mẻ gốm đang ở trạng thái " + batch.getStatus());
         }
@@ -106,7 +103,7 @@ public class PipelineServiceImpl implements PipelineService {
 
         Batch savedBatch = batchRepo.save(batch);
 
-        // 4. Bắn thông báo async (không block request chính)
+        // 4. Bắn thông báo async
         notificationService.sendStageCompletedAlert(savedBatch, currentStage, nextStage);
 
         return mapToResponse(savedBatch);
@@ -127,16 +124,19 @@ public class PipelineServiceImpl implements PipelineService {
     }
 
     private BatchResponse mapToResponse(Batch batch) {
+        if (batch == null) return null;
+
         BatchResponse response = modelMapper.map(batch, BatchResponse.class);
+
         if (batch.getOrder() != null) {
             response.setOrderId(batch.getOrder().getId());
             response.setOrderCode(batch.getOrder().getOrderCode());
-            if (batch.getOrder().getAiExtractions() != null && !batch.getOrder().getAiExtractions().isEmpty()) {
-                response.setProductName(batch.getOrder().getAiExtractions().iterator().next().getProductName());
-            } else {
-                response.setProductName(batch.getOrder().getCustomerName());
-            }
+            aiExtractionRepo.findByOrderId(batch.getOrder().getId()).ifPresentOrElse(
+                    ai -> response.setProductName(ai.getProductName()),
+                    () -> response.setProductName(batch.getOrder().getCustomerName() != null ? batch.getOrder().getCustomerName() : "Sản phẩm gốm sứ")
+            );
         }
+
         if (batch.getCurrentStage() != null) {
             response.setCurrentStage(modelMapper.map(batch.getCurrentStage(), StageDto.class));
         }
@@ -145,13 +145,15 @@ public class PipelineServiceImpl implements PipelineService {
         List<BatchStageHistoryDto> historyDtos = histories.stream().map(h -> {
             BatchStageHistoryDto dto = modelMapper.map(h, BatchStageHistoryDto.class);
             dto.setBatchId(batch.getId());
-            dto.setStage(modelMapper.map(h.getStage(), StageDto.class));
+            if (h.getStage() != null) {
+                dto.setStage(modelMapper.map(h.getStage(), StageDto.class));
+            }
             if (h.getPerformedBy() != null) {
                 dto.setPerformedById(h.getPerformedBy().getId());
                 dto.setPerformedByName(h.getPerformedBy().getFullName());
             }
             return dto;
-        }).sorted(Comparator.comparing(dto -> dto.getStage().getSequenceOrder()))
+        }).sorted(Comparator.comparing(dto -> (dto.getStage() != null && dto.getStage().getSequenceOrder() != null) ? dto.getStage().getSequenceOrder() : 0))
           .collect(Collectors.toList());
 
         response.setStageHistories(historyDtos);
