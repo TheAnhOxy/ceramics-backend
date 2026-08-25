@@ -1,11 +1,25 @@
 # HỆ THỐNG ĐIỀU PHỐI VÀ GIÁM SÁT QUY TRÌNH SẢN XUẤT XƯỞNG GỐM BÁT TRÀNG
-## BÁO CÁO MÃ NGUỒN MÁY CHỦ BACKEND REST API (JAVA SPRING BOOT)
 
-Tài liệu báo cáo chi tiết mã nguồn dịch vụ máy chủ Backend xây dựng bằng Java Spring Boot 3. Backend tập trung toàn bộ thời gian và nguồn lực vào việc phát triển **LOGIC XỬ LÝ TỰ ĐỘNG (CORE LOGIC)**, đảm bảo luồng dữ liệu chạy trôi chảy end-to-end từ đầu vào đến đầu ra, xử lý tốt các ngoại lệ/lỗi và phối hợp thông minh với AI bóc tách JSON chuẩn 10 thông số.
+## 1. GIỚI THIỆU BÀI TOÁN THỰC TẾ XƯỞNG GỐM BÁT TRÀNG
+
+### Bối Cảnh Nghiệp Vụ Thực Tế
+Xưởng gốm sứ Bát Tràng tiếp nhận hàng trăm đơn hàng gia công chế tác gốm sứ thủ công và công nghiệp mỗi tháng. Các đơn hàng gửi về từ các đại lý, nhà hàng, khách sạn thường ở dạng câu văn mô tả tự nhiên (Ví dụ: *"Đơn 500 Bộ ấm trà tử sa họa tiết men rạn cổ cao 18cm, nung lò 1250°C trong 20 giờ, giao gấp trong 7 ngày"*).
+
+### Các Thách Thức Cần Giải Quyết
+1. **Khó khăn trong tính toán thông số**: Quản lý xưởng mất nhiều thời gian đọc câu văn tự nhiên để tự tính thủ công lượng đất sét cần dùng, nhiệt độ lò nung, thời gian nung và độ ưu tiên tiến độ.
+2. **Theo dõi tiến độ 6 công đoạn liên hoàn**: Quy trình sản xuất gốm sứ bắt buộc phải trải qua 6 trạm nối tiếp (*Tạo hình mộc $\rightarrow$ Phơi sấy & Sửa mộc $\rightarrow$ Vẽ họa tiết $\rightarrow$ Tráng men $\rightarrow$ Vào lò nung $\rightarrow$ QC & Đóng gói*). Việc theo dõi tiến độ thực tế của từng mẻ gốm tại các trạm nếu làm trên sổ sách thủ công rất dễ thất thoát và nhầm lẫn.
+3. **Cảnh báo sự cố trễ**: Trong sản xuất gốm sứ tinh xảo, tỷ lệ nứt phôi mộc hoặc nứt men tối đa cho phép chỉ là 3%. Nếu sự cố nứt men ở lò nung xảy ra (tỷ lệ lỗi > 3%) mà không phát hiện kịp thời sẽ gây lãng phí rất lớn về chi phí nguyên liệu và công sức thợ.
+
+### Mục Tiêu Giải Pháp Của Backend
+- Xây dựng máy chủ Spring Boot tập trung xử lý tự động hóa luồng nghiệp vụ.
+- Tích hợp mô-đun AI Agent bóc tách câu văn tự nhiên thành 10 thông số kỹ thuật chuẩn JSON.
+- Tự động tạo mẻ gốm và gán lịch sử 6 công đoạn liên hoàn.
+- Áp dụng Khóa bi quan (`PESSIMISTIC_WRITE`) chống tranh chấp dữ liệu khi thợ xưởng chuyển bước.
+- Tính toán tỷ lệ lỗi QC thời gian thực và tự động phát bản tin CẢNH BÁO ĐỎ khẩn cấp 2 chiều sang Slack/Zalo để quản lý xưởng dừng lò xử lý kịp thời.
 
 ---
 
-## 1. MÔ HÌNH VÀ CÁC THÀNH PHẦN CHÍNH CỦA MÁY CHỦ BACKEND
+## 2. MÔ HÌNH VÀ CÁC THÀNH PHẦN CHÍNH CỦA MÁY CHỦ BACKEND
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -52,7 +66,7 @@ Tài liệu báo cáo chi tiết mã nguồn dịch vụ máy chủ Backend xây
 
 ---
 
-## 2. CHI TIẾT LOGIC XỬ LÝ TỰ ĐỘNG VÀ NGOẠI LỆ (CORE LOGIC & ERROR HANDLING)
+## 3. CHI TIẾT LOGIC XỬ LÝ TỰ ĐỘNG VÀ NGOẠI LỆ (CORE LOGIC & ERROR HANDLING)
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -102,7 +116,7 @@ Tài liệu báo cáo chi tiết mã nguồn dịch vụ máy chủ Backend xây
 
 ---
 
-## 3. CẤU TRÚC MÃ NGUỒN MÁY CHỦ BACKEND
+## 4. CẤU TRÚC MÃ NGUỒN MÁY CHỦ BACKEND
 
 ```
 ceramics-backend/
@@ -124,7 +138,7 @@ ceramics-backend/
 
 ---
 
-## 4. DANH SÁCH REST API CONTRACTS
+## 5. DANH SÁCH REST API CONTRACTS
 
 Định dạng phản hồi API chuẩn `ResponseEntity<ApiResponse<T>>`:
 ```json
@@ -152,7 +166,7 @@ ceramics-backend/
 
 ---
 
-## 5. HƯỚNG DẪN KHỞI CHẠY DỰ ÁN BACKEND (SETUP GUIDE)
+## 6. HƯỚNG DẪN KHỞI CHẠY DỰ ÁN BACKEND (SETUP GUIDE)
 
 ### Yêu Cầu Môi Trường Máy Chủ
 - Java Development Kit (JDK) 17 trở lên.
