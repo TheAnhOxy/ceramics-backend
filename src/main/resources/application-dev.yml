@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/ceramics_pipeline?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
-    password: Theanh@123
+    password: ${PASSWORD_URL}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   sql:
