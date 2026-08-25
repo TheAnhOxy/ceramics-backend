@@ -1,85 +1,104 @@
 # HỆ THỐNG ĐIỀU PHỐI VÀ GIÁM SÁT QUY TRÌNH SẢN XUẤT XƯỞNG GỐM BÁT TRÀNG
 ## BÁO CÁO MÃ NGUỒN MÁY CHỦ BACKEND REST API (JAVA SPRING BOOT)
 
-Tài liệu báo cáo chi tiết mã nguồn dịch vụ máy chủ Backend xây dựng bằng Java Spring Boot 3. Backend đóng vai trò trung tâm điều phối luồng dữ liệu tự động hóa (Automation Core), tích hợp AI Agent bóc tách thông số kỹ thuật đơn hàng chuẩn JSON, điều phối 6 công đoạn chế tác gốm sứ Bát Tràng, kiểm soát đồng thời Khóa bi quan (PESSIMISTIC_WRITE), tính toán ngưỡng lỗi QC và tự động phát bản tin thông báo 2 chiều qua ứng dụng Slack/Zalo.
+Tài liệu báo cáo chi tiết mã nguồn dịch vụ máy chủ Backend xây dựng bằng Java Spring Boot 3. Backend tập trung toàn bộ thời gian và nguồn lực vào việc phát triển **LOGIC XỬ LÝ TỰ ĐỘNG (CORE LOGIC)**, đảm bảo luồng dữ liệu chạy trôi chảy end-to-end từ đầu vào đến đầu ra, xử lý tốt các ngoại lệ/lỗi và phối hợp thông minh với AI bóc tách JSON chuẩn 10 thông số.
 
 ---
 
-## 1. ĐÁP ỨNG TRỌN VẸN 4 THÀNH PHẦN CỐT LÕI ĐẦU RẠNG CỦA ĐỀ BÀI
+## 1. MÔ HÌNH VÀ CÁC THÀNH PHẦN CHÍNH CỦA MÁY CHỦ BACKEND
 
 ```
 +-----------------------------------------------------------------------------------+
-|                        MÔ HÌNH THỰC THI 4 THÀNH PHẦN CỐT LÕI                      |
+|                        MÔ HÌNH KIẾN TRÚC MÁY CHỦ BACKEND                          |
 |                                                                                   |
-|  (1) FRONTEND WEB UI     <===> (2) AUTOMATION PIPELINE LOGIC                      |
-|  - Màn hình Kanban 7 cột       - Khởi tạo 6 công đoạn tự động liên hoàn           |
-|  - Form nhập liệu tự nhiên     - Khóa bi quan @Lock(PESSIMISTIC_WRITE)           |
+|  (1) KẾT NỐI REST API WEB  <===> (2) LOGIC TỰ ĐỘNG HÓA CÔNG ĐOẠN                  |
+|  - Cung cấp Endpoints JSON     - Khởi tạo 6 trạm chế tác liên hoàn                |
+|  - Trả về ApiResponse chuẩn    - Khóa bi quan @Lock(PESSIMISTIC_WRITE)            |
 |                                                                                   |
-|  (3) LLM AI AGENT ENGINE <===> (4) TÍCH HỢP KÊNH CHAT (SLACK / ZALO)             |
-|  - Bóc tách 10 trường JSON     - Bắn tin tiến độ khi xong từng công đoạn          |
+|  (3) AI AGENT ENGINE LLM   <===> (4) TÍCH HỢP KÊNH CHAT (SLACK / ZALO)              |
+|  - Trích xuất 10 trường JSON   - Bắn tin tiến độ khi xong công đoạn               |
 |  - Thử lại 3 lần & Fallback    - Cảnh báo đỏ khẩn cấp khi QC lỗi > 3%             |
-|                                - Nút bấm [✅ Xác nhận] 2 chiều ngay trong chat     |
+|                                - Nút bấm [Xác nhận hoàn thành] 2 chiều            |
 +-----------------------------------------------------------------------------------+
 ```
 
-### Thành Phần 1: Giao Diện Web (Frontend Integration)
-- Cung cấp đầy đủ các đường dẫn REST API theo chuẩn `ResponseEntity<ApiResponse<T>>` phục vụ cho giao diện Web React 18:
-  - `POST /api/orders`: Tiếp nhận văn bản mô tả tự nhiên và khởi chạy AI.
-  - `GET /api/dashboard/kanban`: Cung cấp danh sách mẻ gốm chia theo 7 cột.
-  - `PATCH /api/batches/{id}/advance`: Chuyển mẻ gốm sang trạm tiếp theo.
-  - `POST /api/qc`: Nhận dữ liệu kiểm định QC và phát cảnh báo đỏ khẩn cấp.
+### Khối 1: Dịch Vụ REST API Cho Giao Diện Web
+- Máy chủ cung cấp các đường dẫn REST API định dạng chuẩn `ResponseEntity<ApiResponse<T>>` phục vụ cho giao diện Web React 18:
+  - `POST /api/orders`: Tiếp nhận văn bản mô tả tự nhiên và khởi chạy dịch vụ AI phân tích.
+  - `GET /api/dashboard/kanban`: Cung cấp danh sách mẻ gốm phân chia theo 7 cột công đoạn.
+  - `PATCH /api/batches/{id}/advance`: Cập nhật chuyển mẻ gốm sang trạm tiếp theo.
+  - `POST /api/qc`: Nhận dữ liệu kiểm định chất lượng và kích hoạt cảnh báo đỏ nếu phát hiện sự cố.
 
-### Thành Phần 2: Tự Động Hóa (Automation Logic)
-- **Tự động khởi tạo 6 công đoạn liên hoàn**: Ngay khi tiếp nhận đơn hàng, hệ thống tự động sinh mẻ gốm `#GOM-YYYYMMDD-XX` và khởi tạo lịch sử 6 trạm chế tác:
+### Khối 2: Logic Tự Động Hóa Quy Trình 6 Công Đoạn
+- **Tự động khởi tạo 6 công đoạn liên hoàn**: Ngay khi tạo đơn hàng mới, hệ thống tự động sinh mẻ gốm `#GOM-YYYYMMDD-XX` và gán lịch sử 6 trạm chế tác:
   1. `Tạo hình mộc` (FORMING - Trạng thái: `IN_PROGRESS`)
   2. `Phơi sấy & Sửa mộc` (DRYING_TRIMMING - Trạng thái: `PENDING`)
   3. `Vẽ họa tiết` (PAINTING - Trạng thái: `PENDING`)
   4. `Tráng men` (GLAZING - Trạng thái: `PENDING`)
   5. `Vào lò nung` (FIRING - Trạng thái: `PENDING`)
   6. `Kiểm định chất lượng (QC) & Đóng gói` (QC_PACKAGING - Trạng thái: `PENDING`)
-- **Tự động chuyển trạng thái**: Khi một trạm hoàn thành, hệ thống tự động đánh dấu hoàn thành trạm cũ và mở trạng thái `IN_PROGRESS` cho trạm kế tiếp.
+- **Tự động chuyển trạng thái**: Khi một trạm hoàn thành, hệ thống tự động lưu vết thời gian, cập nhật trạm cũ và mở trạng thái thực hiện cho trạm kế tiếp.
 
-### Thành Phần 3: Ứng Dụng AI (LLM / Agent Integration)
-- **Prompt đóng vai Kỹ sư Xưởng gốm Bát Tràng**: Ép mô hình LLM trả về đúng Schema JSON chuẩn gồm 10 thông số: `product_name`, `pattern`, `height_cm`, `glaze_type`, `quantity`, `firing_temp_celsius`, `firing_duration_hours`, `estimated_clay_kg`, `priority_level` và `confidence_note`.
-- **Xử lý ngoại lệ AI (Retry 3 lần & Fallback)**: Nếu AI trả về JSON sai cú pháp, dịch vụ `AiExtractionServiceImpl` tự động thử lại 3 lần. Nếu vẫn gián đoạn mạng ngoài, hệ thống dùng thuật toán Smart Fallback tại local trích xuất các thông số cơ bản để quy trình sản xuất không bao giờ bị tắc nghẽn.
+### Khối 3: Dịch Vụ AI Agent Phân Tích Thông Số JSON
+- **Prompt thiết kế chuẩn chuyên môn gốm Bát Tràng**: Ép mô hình LLM phân tích câu văn tự nhiên và trả về cấu trúc JSON 10 thông số: `product_name`, `pattern`, `height_cm`, `glaze_type`, `quantity`, `firing_temp_celsius`, `firing_duration_hours`, `estimated_clay_kg`, `priority_level` và `confidence_note`.
+- **Xử lý ngoại lệ (Retry 3 lần & Fallback)**: Nếu phản hồi AI bị lỗi định dạng, dịch vụ `AiExtractionServiceImpl` tự động thử lại 3 lần. Nếu mất mạng ngoài, hệ thống tự động dùng thuật toán dự phòng tại local để tiếp nhận đơn hàng không bị gián đoạn.
 
-### Thành Phần 4: Tích Hợp Kênh Chat (Slack / Zalo Automation)
-- **Tự động bắn thông báo hoàn thành công đoạn**: Khi mẻ gốm chuyển bước, hệ thống tự động phát bản tin thông báo tiến độ về nhóm chat.
-  - **Ví dụ thực tế**: `"Mẻ gốm #GOM-88 đã vào lò nung - nhiệt độ 1280°C, thời gian nung 24 giờ"`.
-- **Cảnh báo sự cố khẩn cấp khi QC phát hiện lỗi**: Khi thợ QC kiểm định và phát hiện tỷ lệ lỗi vượt quá 3%.
-  - **Ví dụ thực tế**: `"Công đoạn QC phát hiện 10 sản phẩm nứt men trên 100 sản phẩm kiểm tra (Tỷ lệ lỗi 10.0% > 3.0%) -> Bắn cảnh báo đỏ về nhóm chat để quản lý xưởng xử lý dừng lò kịp thời!"`.
-- **Tích hợp nút bấm xác nhận 2 chiều ngay trong Chat (Điểm cộng)**: Nhóm chat Slack/Zalo nhận tin nhắn chứa nút bấm **`[ ✅ Xác nhận hoàn thành công đoạn ]`**. Thợ xưởng bấm trực tiếp trong Slack, Webhook `/api/slack/webhook` tiếp nhận callback, cập nhật mẻ gốm và trả về phản hồi tin nhắn ẩn `{"response_type": "ephemeral"}` xóa biểu tượng chờ trên Slack.
+### Khối 4: Dịch Vụ Thông Báo & Tương Tác 2 Chiều Slack / Zalo
+- **Tự động gửi thông báo hoàn thành công đoạn**: Khi mẻ gốm chuyển bước, hệ thống tự động phát bản tin thông báo tiến độ về nhóm chat Slack/Zalo.
+  - *Ví dụ thực tế*: `"Mẻ gốm #GOM-88 đã vào lò nung - nhiệt độ 1280°C, thời gian nung 24 giờ"`.
+- **Cảnh báo sự cố khẩn cấp khi QC phát hiện lỗi**: Khi thợ QC kiểm định phát hiện tỷ lệ lỗi vượt quá 3%.
+  - *Ví dụ thực tế*: `"Công đoạn QC phát hiện 10 sản phẩm nứt men trên 100 sản phẩm kiểm tra (Tỷ lệ lỗi 10.0% > 3.0%) -> Bắn cảnh báo đỏ về nhóm chat để quản lý xưởng xử lý dừng lò kịp thời!"`.
+- **Nút bấm xác nhận 2 chiều ngay trong Chat**: Nhóm chat Slack/Zalo nhận tin nhắn chứa nút bấm `[ Xác nhận hoàn thành công đoạn ]`. Thợ xưởng bấm trực tiếp trong Slack, Webhook `/api/slack/webhook` tiếp nhận callback, cập nhật mẻ gốm và trả về phản hồi tin nhắn ẩn `{"response_type": "ephemeral"}` xóa biểu tượng chờ trên Slack.
 
 ---
 
-## 2. BẢNG TỔNG HỢP CÁC LOGIC NGHIỆP VỤ BACKEND
+## 2. CHI TIẾT LOGIC XỬ LÝ TỰ ĐỘNG VÀ NGOẠI LỆ (CORE LOGIC & ERROR HANDLING)
 
 ```
 +-----------------------------------------------------------------------------------+
-|                        BẢNG CHI TIẾT LOGIC XỬ LÝ NỘI BỘ BACKEND                   |
+|                  CHI TIẾT LUỒNG XỬ LÝ TỰ ĐỘNG VÀ XỬ LÝ LỖI (CORE LOGIC)           |
 |                                                                                   |
-| 1. LOGIC TIẾP NHẬN ĐƠN HÀNG (Order & AI Processing Logic):                        |
-|    - Nhập mô tả tự nhiên -> Gọi AiExtractionService -> Nhận JSON 10 thông số      |
-|    - Tính toán lượng đất sét = (Chiều cao * Số lượng * Hằng số co ngót) / 10     |
-|    - Đánh giá Priority: Nếu thời gian giao <= 5 ngày -> HIGH/URGENT, ngược lại    |
+|  1. THIẾT KẾ PROMPT & BÓC TÁCH SCHEMA JSON AI AGENT:                              |
+|     - System Prompt ép LLM trả về đúng JSON Schema 10 thông số kỹ thuật gốm sứ.   |
+|     - Tự động tính toán lượng đất sét = (Chiều cao * Số lượng * Hằng số ngót) / 10 |
+|     - Tự động đánh giá Priority: Hạn giao <= 5 ngày -> URGENT/HIGH, > 5 ngày -> NORMAL|
 |                                                                                   |
-| 2. LOGIC ĐIỀU PHỐI MẺ GỐM (Batch Pipeline Logic):                                 |
-|    - Áp dụng @Lock(PESSIMISTIC_WRITE) khóa bản ghi Batch trong MySQL              |
-|    - Kiểm tra thứ tự trạm: Không cho phép nhảy cóc công đoạn                      |
-|    - Ghi nhận BatchStageHistory: Lưu thời gian, người thực hiện, ghi chú          |
+|  2. XỬ LÝ LUỒNG TỰ ĐỘNG END-TO-END VÀ ĐỘ ỔN ĐỊNH DỮ LIỆU:                        |
+|     - Áp dụng @Lock(PESSIMISTIC_WRITE) khóa bản ghi Batch trong MySQL Database    |
+|     - Ngăn chặn triệt để lỗi tranh chấp đồng thời (Race Condition) khi nhiều thợ   |
+|       hoặc quản lý trên Slack cùng bấm nút chuyển bước một lúc.                  |
+|     - Ràng buộc luồng 6 trạm: Ngăn nhảy cóc công đoạn, kiểm tra trạng thái hợp lệ |
 |                                                                                   |
-| 3. LOGIC KIỂM ĐỊNH QC & ĐÁNH GIÁ NGƯỠNG LỖI (QC & Threshold Alert Logic):         |
-|    - Defect Rate (%) = (failedCount / totalChecked) * 100                         |
-|    - Khống chế ngưỡng lỗi gốm sứ tinh xảo Bát Tràng = 3.0%                        |
-|    - Nếu Defect Rate > 3.0%: Gán isCritical = true -> Lưu Alert Entity            |
-|      -> Kích hoạt @Async NotificationService bắn tin CẢNH BÁO ĐỎ sang Chat       |
-|                                                                                   |
-| 4. LOGIC CHATBOT & WEBHOOK CALLBACK (ChatOps 2-Way Logic):                        |
-|    - Endpoint POST /api/slack/webhook xử lý callback từ nút bấm                   |
-|    - Phân tích payload -> Lấy batchId -> Gọi advanceStage()                       |
-|    - Phản hồi JSON Ephemeral {"response_type": "ephemeral", "text": "✅ Thành công"}|
+|  3. XỬ LÝ CÁC TÌNH HUỐNG LỖI VÀ NGOẠI LỆ (ERROR & EXCEPTION HANDLING):           |
+|     - Ngoại lệ AI JSON sai cấu trúc -> Vòng lặp thử lại 3 lần (Retry 3x Loop)     |
+|     - Mất kết nối API ngoài -> Kích hoạt Smart Fallback Engine trích xuất tại local|
+|     - Gửi tin nhắn Slack trễ mạng -> Chạy bất đồng bộ ngầm @Async ThreadPool      |
+|     - Lỗi tham số / Không tìm thấy ID -> GlobalExceptionHandler xử lý chuẩn HTTP 400/404|
 +-----------------------------------------------------------------------------------+
 ```
+
+### Chi Tiết Kỹ Thuật Logic Xử Lý Và Xử Lý Lỗi Nội Bộ Backend:
+
+1. **Thiết kế Prompt AI và Đảm bảo Schema JSON chuẩn**:
+   - System Prompt đóng vai Kỹ sư Xưởng gốm Bát Tràng, quy định chặt chẽ các kiểu dữ liệu trả về (`height_cm` dạng number, `glaze_type` dạng string, `priority_level` dạng enum `URGENT/HIGH/NORMAL`).
+   - Tự động bổ sung các thông số ước tính như lượng đất sét (kg) và ghi chú tin cậy giúp quản lý xưởng đưa ra quyết định sản xuất chính xác.
+
+2. **Cơ chế Thử lại 3 lần (Retry 3x) & Smart Fallback Engine**:
+   - Khi dịch vụ `AiExtractionServiceImpl` nhận phản hồi từ LLM API, hệ thống chạy qua bộ kiểm tra cấu trúc `validateAndParseJson()`.
+   - Nếu AI trả về chuỗi văn bản tự do hoặc hỏng dấu đóng mở ngoặc, hàm bắt ngoại lệ `JsonParseException` và kích hoạt vòng lặp gửi lại request với prompt nhắc lại cấu trúc chuẩn tối đa 3 lần.
+   - Nếu xảy ra sự cố sập mạng hoặc hết quota API ngoài, hệ thống dùng bộ phân tích regex dự phòng tại local để trích xuất tên sản phẩm và số lượng, đảm bảo ứng dụng không bao giờ bị đứng hoặc văng lỗi ra giao diện.
+
+3. **Kiểm soát đồng thời bằng Khóa bi quan (`@Lock(PESSIMISTIC_WRITE)`)**:
+   - Khi API `PATCH /api/batches/{id}/advance` hoặc Webhook `/api/slack/webhook` tiếp nhận yêu cầu chuyển bước cho mẻ gốm, Repository thực thi câu lệnh SQL `SELECT ... FOR UPDATE`.
+   - Giao dịch thứ hai cố tình thao tác cùng một mẻ gốm sẽ phải chờ giao dịch đầu tiên commit thành công. Điều này bảo vệ tuyệt đối dữ liệu lịch sử công đoạn (`BatchStageHistory`) không bị ghi đè hoặc sai lệch trạng thái.
+
+4. **Xử lý bất đồng bộ ngầm `@Async` cho Dịch vụ Thông báo**:
+   - Việc gửi tin nhắn HTTP POST sang Webhook của Slack/Zalo được thực thi trong một luồng riêng (`ThreadPoolTaskExecutor`).
+   - Nếu mạng Slack/Zalo bị trễ (latency cao), người dùng trên giao diện Web vẫn nhận được phản hồi ngay lập tức mà không bị xoay vòng chờ đợi.
+
+5. **Xử lý ngoại lệ tập trung (`GlobalExceptionHandler`)**:
+   - Sử dụng `@RestControllerAdvice` để bắt toàn bộ các ngoại lệ `ResourceNotFoundException`, `IllegalArgumentException`, `MethodArgumentNotValidException`.
+   - Mọi lỗi văng ra từ hệ thống đều được bọc lại theo cấu trúc JSON chuẩn `ApiResponse(status, message, data, timestamp)` giúp Frontend nhận biết nguyên nhân lỗi chính xác.
 
 ---
 
@@ -160,4 +179,3 @@ mvn spring-boot:run
 Sau khi dòng chữ thông báo khởi chạy hiện ra:
 - **Server API**: Sẵn sàng phục vụ tại địa chỉ `http://localhost:8080`
 - **Swagger UI Tra Cứu API**: Mở trình duyệt truy cập `http://localhost:8080/swagger-ui.html`
-
