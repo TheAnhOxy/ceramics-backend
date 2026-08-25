@@ -1,13 +1,13 @@
 # HỆ THỐNG ĐIỀU PHỐI VÀ GIÁM SÁT QUY TRÌNH SẢN XUẤT XƯỞNG GỐM BÁT TRÀNG
 
-## 1. GIỚI THIỆU BÀI TOÁN THỰC TẾ XƯỞNG GỐM BÁT TRÀNG
+## 1. GIỚI THIỆU BÀI TOÁN XƯỞNG GỐM BÁT TRÀNG
 
 ### Bối Cảnh Nghiệp Vụ Thực Tế
 Xưởng gốm sứ Bát Tràng tiếp nhận hàng trăm đơn hàng gia công chế tác gốm sứ thủ công và công nghiệp mỗi tháng. Các đơn hàng gửi về từ các đại lý, nhà hàng, khách sạn thường ở dạng câu văn mô tả tự nhiên (Ví dụ: *"Đơn 500 Bộ ấm trà tử sa họa tiết men rạn cổ cao 18cm, nung lò 1250°C trong 20 giờ, giao gấp trong 7 ngày"*).
 
 ### Các Thách Thức Cần Giải Quyết
 1. **Khó khăn trong tính toán thông số**: Quản lý xưởng mất nhiều thời gian đọc câu văn tự nhiên để tự tính thủ công lượng đất sét cần dùng, nhiệt độ lò nung, thời gian nung và độ ưu tiên tiến độ.
-2. **Theo dõi tiến độ 6 công đoạn liên hoàn**: Quy trình sản xuất gốm sứ bắt buộc phải trải qua 6 trạm nối tiếp (*Tạo hình mộc $\rightarrow$ Phơi sấy & Sửa mộc $\rightarrow$ Vẽ họa tiết $\rightarrow$ Tráng men $\rightarrow$ Vào lò nung $\rightarrow$ QC & Đóng gói*). Việc theo dõi tiến độ thực tế của từng mẻ gốm tại các trạm nếu làm trên sổ sách thủ công rất dễ thất thoát và nhầm lẫn.
+2. **Theo dõi tiến độ 6 công đoạn liên hoàn**: Quy trình sản xuất gốm sứ bắt buộc phải trải qua 6 trạm nối tiếp (*Tạo hình mộc --> Phơi sấy & Sửa mộc --> Vẽ họa tiết --> Tráng men --> Vào lò nung --> QC & Đóng gói*). Việc theo dõi tiến độ thực tế của từng mẻ gốm tại các trạm nếu làm trên sổ sách thủ công rất dễ thất thoát và nhầm lẫn.
 3. **Cảnh báo sự cố trễ**: Trong sản xuất gốm sứ tinh xảo, tỷ lệ nứt phôi mộc hoặc nứt men tối đa cho phép chỉ là 3%. Nếu sự cố nứt men ở lò nung xảy ra (tỷ lệ lỗi > 3%) mà không phát hiện kịp thời sẽ gây lãng phí rất lớn về chi phí nguyên liệu và công sức thợ.
 
 ### Mục Tiêu Giải Pháp Của Backend
