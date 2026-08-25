@@ -24,4 +24,6 @@ public interface BatchRepository extends JpaRepository<Batch, Long> {
     List<Batch> findByStatus(BatchStatus status);
 
     List<Batch> findByCurrentStageId(Integer currentStageId);
+
+    List<Batch> findByOrderId(Long orderId);
 }
