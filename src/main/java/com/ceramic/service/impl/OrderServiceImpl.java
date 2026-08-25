@@ -165,14 +165,15 @@ public class OrderServiceImpl implements OrderService {
             dto.setEstimatedClayKg(ai.getEstimatedClayKg());
             dto.setFiringTempCelsius(ai.getFiringTempCelsius());
             dto.setFiringDurationHours(ai.getFiringDurationHours());
-            dto.setPriorityLevel(ai.getPriorityLevel().name());
+            dto.setPriorityLevel(ai.getPriorityLevel() != null ? ai.getPriorityLevel().name() : "NORMAL");
             dto.setConfidenceNote(ai.getConfidenceNote());
             response.setAiExtraction(dto);
         });
 
         // Map Batches
-        if (order.getBatches() != null) {
-            List<BatchResponse> batches = order.getBatches().stream()
+        List<Batch> orderBatches = batchRepository.findByOrderId(order.getId());
+        if (orderBatches != null && !orderBatches.isEmpty()) {
+            List<BatchResponse> batches = orderBatches.stream()
                     .map(b -> pipelineService.getBatchById(b.getId()))
                     .collect(Collectors.toList());
             response.setBatches(batches);
