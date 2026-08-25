@@ -38,10 +38,21 @@ management:
         include: '*'
 
 cloudinary:
-  url: cloudinary://632641588972872:O1Ik4PlUtr5WZ6-1g6x_xbuLYdU@dwzjxsdli
+  url: ${CLOUDINARY_URL}
 
 logging:
   level:
     root: INFO
     org.springframework.data.repository: DEBUG
+
+llm:
+  api-key: ${LLM_API_KEY}
+
+slack:
+  webhook-url: ${SLACK_WEBHOOK_URL}
+  channel: "#new-channel"
+
+zalo:
+  webhook-url: ${ZALO_WEBHOOK_URL}
+
 
