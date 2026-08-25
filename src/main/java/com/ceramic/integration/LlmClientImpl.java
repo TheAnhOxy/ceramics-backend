@@ -17,8 +17,8 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class LlmClientImpl implements LlmClient {
 
-    @Value("${openai.api-key:}")
-    private String openAiApiKey;
+    @Value("${llm.api-key:${openai.api-key:}}")
+    private String llmApiKey;
 
     @Value("${openai.api-url:https://api.openai.com/v1/chat/completions}")
     private String openAiApiUrl;
@@ -31,21 +31,75 @@ public class LlmClientImpl implements LlmClient {
 
     @Override
     public String complete(String systemPrompt, String userPrompt) {
-        if (openAiApiKey != null && !openAiApiKey.isBlank() && !openAiApiKey.equals("YOUR_OPENAI_API_KEY")) {
+        if (llmApiKey != null && !llmApiKey.isBlank() && !llmApiKey.equals("YOUR_OPENAI_API_KEY")) {
+            // Check if key is Gemini API or OpenAI API
+            if (llmApiKey.startsWith("AQ") || llmApiKey.startsWith("AIza")) {
+                try {
+                    log.info("Khởi tạo cuộc gọi Gemini API bóc tách dữ liệu đơn hàng...");
+                    return callGeminiApi(systemPrompt, userPrompt);
+                } catch (Exception e) {
+                    log.warn("Lỗi khi gọi Gemini API ({}), thử chuyển sang OpenAI API hoặc Smart Fallback...", e.getMessage());
+                }
+            }
+
             try {
+                log.info("Khởi tạo cuộc gọi OpenAI API bóc tách dữ liệu...");
                 return callOpenAiApi(systemPrompt, userPrompt);
             } catch (Exception e) {
-                log.warn("Lỗi khi gọi OpenAI API, chuyển sang Smart Rule Fallback Parser: {}", e.getMessage());
+                log.warn("Lỗi khi gọi OpenAI API ({}), chuyển sang Smart Rule Fallback Parser...", e.getMessage());
             }
         }
         log.info("Chạy Smart Rule Fallback Parser để bóc tách thông số đơn hàng...");
         return fallbackSmartParse(userPrompt);
     }
 
+    private String callGeminiApi(String systemPrompt, String userPrompt) throws Exception {
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + llmApiKey;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        
+        String combinedPrompt = systemPrompt + "\n\nNội dung đơn hàng từ khách hàng:\n\"" + userPrompt + "\"";
+        Map<String, Object> userPart = Map.of("text", combinedPrompt);
+
+        requestBody.put("contents", List.of(
+                Map.of("role", "user", "parts", List.of(userPart))
+        ));
+
+        Map<String, Object> genConfig = new HashMap<>();
+        genConfig.put("response_mime_type", "application/json");
+        genConfig.put("temperature", 0.2);
+        requestBody.put("generationConfig", genConfig);
+
+        HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            Map<?, ?> jsonMap = objectMapper.readValue(response.getBody(), Map.class);
+            List<?> candidates = (List<?>) jsonMap.get("candidates");
+            if (candidates != null && !candidates.isEmpty()) {
+                Map<?, ?> firstCandidate = (Map<?, ?>) candidates.get(0);
+                Map<?, ?> contentMap = (Map<?, ?>) firstCandidate.get("content");
+                if (contentMap != null) {
+                    List<?> parts = (List<?>) contentMap.get("parts");
+                    if (parts != null && !parts.isEmpty()) {
+                        Map<?, ?> firstPart = (Map<?, ?>) parts.get(0);
+                        if (firstPart.get("text") != null) {
+                            return firstPart.get("text").toString().trim();
+                        }
+                    }
+                }
+            }
+        }
+        throw new IllegalStateException("Phản hồi từ Gemini API không đúng định dạng JSON");
+    }
+
     private String callOpenAiApi(String systemPrompt, String userPrompt) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(openAiApiKey);
+        headers.setBearerAuth(llmApiKey);
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", openAiModel);
